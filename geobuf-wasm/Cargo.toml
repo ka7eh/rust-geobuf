@@ -1,0 +1,33 @@
+[package]
+name = "geobuf-wasm"
+version = "0.1.0"
+authors = ["Kaveh Karimi (ka7eh) <kaveh.ka@gmail.com>"]
+edition = "2018"
+license = "ISC"
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+default = ["console_error_panic_hook"]
+
+[dependencies]
+cfg-if = "0.1"
+console_error_panic_hook = { version = "0.1.6", optional = true }
+geobuf = { path = "../geobuf" }
+protobuf = { git = "https://github.com/stepancheg/rust-protobuf.git", branch = "master" }
+serde_json = "1.0"
+wasm-bindgen = { version = "0.2.63", features = ["serde-serialize"] }
+
+[dev-dependencies.web-sys]
+version = "0.3"
+features = [
+  "console",
+]
+
+[profile.release]
+opt-level = 3
+lto = true
+
+[build]
+target = "wasm32-unknown-unknown"
