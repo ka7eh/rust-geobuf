@@ -8,60 +8,60 @@ matrix:
 
     # Build the library and binary
     - rust:
-    - stable
-    - beta
-    - nightly
+      - stable
+      - beta
+      - nightly
 
-    jobs:
-      allow_failures:
-        - beta
-        - nightly
+      jobs:
+        allow_failures:
+          - beta
+          - nightly
 
-    # Dependencies of kcov, used by coverage
-    addons:
-      apt:
-        packages:
-          - libcurl4-openssl-dev
-          - libelf-dev
-          - libdw-dev
-          - binutils-dev
-          - cmake # also required for cargo-update
-        sources:
-          - kalakris-cmake
+      # Dependencies of kcov, used by coverage
+      addons:
+        apt:
+          packages:
+            - libcurl4-openssl-dev
+            - libelf-dev
+            - libdw-dev
+            - binutils-dev
+            - cmake # also required for cargo-update
+          sources:
+            - kalakris-cmake
 
-    before_script:
-      - export PATH=$HOME/.cargo/bin:$PATH
-      - cd geobuf
-      - cargo install cargo-update || echo "cargo-update already installed"
-      - cargo install cargo-travis || echo "cargo-travis already installed"
-      - cargo install-update -a
+      before_script:
+        - export PATH=$HOME/.cargo/bin:$PATH
+        - cd geobuf
+        - cargo install cargo-update || echo "cargo-update already installed"
+        - cargo install cargo-travis || echo "cargo-travis already installed"
+        - cargo install-update -a
 
-    script:
-      - |
-          cargo build --features binary &&
-          cargo test -p geobuf &&
-          cargo doc
+      script:
+        - |
+            cargo build --features binary &&
+            cargo test -p geobuf &&
+            cargo doc
 
-    after_success:
-      - cargo coveralls --all --exclude-pattern target
-      - cargo doc-upload
+      after_success:
+        - cargo coveralls --all --exclude-pattern target
+        - cargo doc-upload
 
-  # Builds with wasm-pack.
-  - rust: beta
-    env: RUST_BACKTRACE=1
-    addons:
-      firefox: latest
-      chrome: stable
-    before_script:
-      - (test -x $HOME/.cargo/bin/cargo-install-update || cargo install cargo-update)
-      - (test -x $HOME/.cargo/bin/cargo-generate || cargo install --vers "^0.2" cargo-generate)
-      - cargo install-update -a
-      - curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh -s -- -f
-      - cd geobuf-wasm
-    script:
-      - cargo generate --git . --name testing
-      # Having a broken Cargo.toml (in that it has curlies in fields) anywhere
-      # in any of our parent dirs is problematic.
-      - mv Cargo.toml Cargo.toml.tmpl
-      - cd testing
-      - wasm-pack build
+    # Builds with wasm-pack.
+    - rust: beta
+      env: RUST_BACKTRACE=1
+      addons:
+        firefox: latest
+        chrome: stable
+      before_script:
+        - (test -x $HOME/.cargo/bin/cargo-install-update || cargo install cargo-update)
+        - (test -x $HOME/.cargo/bin/cargo-generate || cargo install --vers "^0.2" cargo-generate)
+        - cargo install-update -a
+        - curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh -s -- -f
+        - cd geobuf-wasm
+      script:
+        - cargo generate --git . --name testing
+        # Having a broken Cargo.toml (in that it has curlies in fields) anywhere
+        # in any of our parent dirs is problematic.
+        - mv Cargo.toml Cargo.toml.tmpl
+        - cd testing
+        - wasm-pack build
