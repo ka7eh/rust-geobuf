@@ -1,13 +1,10 @@
 //! Geobuf to GeoJSON decoder
-use protobuf::RepeatedField;
-
 use serde_json::Value as JSONValue;
 
-use crate::geobuf_pb::data::feature::Id_type;
-use crate::geobuf_pb::data::geometry::Type as GeometryType;
-use crate::geobuf_pb::data::value::Value_type;
-use crate::geobuf_pb::data::{Data_type, Feature, FeatureCollection, Geometry, Value};
-use crate::geobuf_pb::Data;
+use crate::geobuf_pb::{
+    Data, Data_Feature, Data_FeatureCollection, Data_Feature_oneof_id_type, Data_Geometry,
+    Data_Geometry_Type, Data_Value, Data_Value_oneof_value_type, Data_oneof_data_type,
+};
 
 /// Geobuf to GeoJSON Decoder
 pub struct Decoder<'a> {
@@ -30,7 +27,7 @@ impl<'a> Decoder<'a> {
     /// use geobuf::geobuf_pb;
     ///
     /// let mut data = geobuf_pb::Data::new();
-    /// let feature_collection = geobuf_pb::data::FeatureCollection::new();
+    /// let feature_collection = geobuf_pb::Data_FeatureCollection::new();
     /// data.set_feature_collection(feature_collection);
     /// let geojson = Decoder::decode(&data).unwrap();
     /// assert_eq!(geojson["type"], "FeatureCollection");
@@ -51,17 +48,17 @@ impl<'a> Decoder<'a> {
         };
 
         match data_type {
-            Data_type::feature_collection(feature_collection) => {
+            Data_oneof_data_type::feature_collection(feature_collection) => {
                 Ok(decoder.decode_feature_collection(&feature_collection))
             }
-            Data_type::feature(feature) => Ok(decoder.decode_feature(&feature)),
-            Data_type::geometry(geometry) => Ok(decoder.decode_geometry(&geometry)),
+            Data_oneof_data_type::feature(feature) => Ok(decoder.decode_feature(&feature)),
+            Data_oneof_data_type::geometry(geometry) => Ok(decoder.decode_geometry(&geometry)),
         }
     }
 
-    fn decode_feature_collection(&self, feature_collection: &FeatureCollection) -> JSONValue {
+    fn decode_feature_collection(&self, feature_collection: &Data_FeatureCollection) -> JSONValue {
         let mut features_json = Vec::new();
-        for feature in feature_collection.features.iter() {
+        for feature in feature_collection.get_features().iter() {
             features_json.push(self.decode_feature(feature));
         }
 
@@ -69,80 +66,83 @@ impl<'a> Decoder<'a> {
             serde_json::json!({"type": "FeatureCollection", "features": features_json});
 
         self.decode_properties(
-            &feature_collection.custom_properties,
-            &feature_collection.values,
+            &feature_collection.get_custom_properties(),
+            &feature_collection.get_values(),
             &mut feature_collection_json,
         );
         feature_collection_json
     }
 
-    fn decode_feature(&self, feature: &Feature) -> JSONValue {
+    fn decode_feature(&self, feature: &Data_Feature) -> JSONValue {
         let mut feature_json = serde_json::json!({
             "type": "Feature",
-            "geometry": self.decode_geometry(&feature.geometry.as_ref().unwrap())
+            "geometry": self.decode_geometry(&feature.get_geometry())
         });
 
         self.decode_properties(
-            &feature.custom_properties,
-            &feature.values,
+            &feature.get_custom_properties(),
+            &feature.get_values(),
             &mut feature_json,
         );
 
         match &feature.id_type {
             Some(id) => match id {
-                Id_type::int_id(id) => feature_json["id"] = serde_json::json!(id),
-                Id_type::id(id) => feature_json["id"] = serde_json::json!(id),
+                Data_Feature_oneof_id_type::int_id(id) => {
+                    feature_json["id"] = serde_json::json!(id)
+                }
+                Data_Feature_oneof_id_type::id(id) => feature_json["id"] = serde_json::json!(id),
             },
             None => {}
         }
 
-        if feature.properties.len() > 0 {
+        let feature_properties = feature.get_properties();
+        if feature_properties.len() > 0 {
             let mut properties = serde_json::json!({});
-            self.decode_properties(&feature.properties, &feature.values, &mut properties);
+            self.decode_properties(&feature_properties, &feature.get_values(), &mut properties);
             feature_json["properties"] = properties;
         }
 
         feature_json
     }
 
-    fn decode_geometry(&self, geometry: &Geometry) -> JSONValue {
+    fn decode_geometry(&self, geometry: &Data_Geometry) -> JSONValue {
         let mut geometry_json = serde_json::json!({});
 
         match geometry.get_field_type() {
-            GeometryType::GEOMETRYCOLLECTION => {
+            Data_Geometry_Type::GEOMETRYCOLLECTION => {
                 geometry_json["type"] = serde_json::json!("GeometryCollection");
                 let mut geometries = Vec::new();
-                for geom in geometry.geometries.iter() {
+                for geom in geometry.get_geometries() {
                     geometries.push(self.decode_geometry(&geom));
                 }
                 geometry_json["geometries"] = serde_json::json!(geometries);
             }
-            GeometryType::POINT => {
+            Data_Geometry_Type::POINT => {
                 geometry_json["type"] = serde_json::json!("Point");
                 geometry_json["coordinates"] =
-                    serde_json::json!(self.decode_point(&geometry.coords));
+                    serde_json::json!(self.decode_point(&geometry.get_coords()));
             }
-            GeometryType::MULTIPOINT => {
+            Data_Geometry_Type::MULTIPOINT => {
                 geometry_json["type"] = serde_json::json!("MultiPoint");
                 geometry_json["coordinates"] =
-                    serde_json::json!(self.decode_line(&geometry.coords, false));
+                    serde_json::json!(self.decode_line(&geometry.get_coords(), false));
             }
-            GeometryType::LINESTRING => {
+            Data_Geometry_Type::LINESTRING => {
                 geometry_json["type"] = serde_json::json!("LineString");
                 geometry_json["coordinates"] =
-                    serde_json::json!(self.decode_line(&geometry.coords, false));
+                    serde_json::json!(self.decode_line(&geometry.get_coords(), false));
             }
-            GeometryType::MULTILINESTRING => {
+            Data_Geometry_Type::MULTILINESTRING => {
                 geometry_json["type"] = serde_json::json!("MultiLineString");
                 geometry_json["coordinates"] =
                     serde_json::json!(self.decode_multi_line(&geometry, false));
             }
-            GeometryType::POLYGON => {
+            Data_Geometry_Type::POLYGON => {
                 geometry_json["type"] = serde_json::json!("Polygon");
                 geometry_json["coordinates"] =
                     serde_json::json!(self.decode_multi_line(&geometry, true));
             }
-            GeometryType::MULTIPOLYGON => {
+            Data_Geometry_Type::MULTIPOLYGON => {
                 geometry_json["type"] = serde_json::json!("MultiPolygon");
                 geometry_json["coordinates"] =
                     serde_json::json!(self.decode_multi_polygon(&geometry));
@@ -150,30 +150,30 @@ impl<'a> Decoder<'a> {
         }
 
         self.decode_properties(
-            &geometry.custom_properties,
-            &geometry.values,
+            &geometry.get_custom_properties(),
+            geometry.get_values(),
             &mut geometry_json,
         );
         geometry_json
     }
 
-    fn decode_properties(
-        &self,
-        properties: &[u32],
-        values: &RepeatedField<Value>,
-        json: &mut JSONValue,
-    ) {
+    fn decode_properties(&self, properties: &[u32], values: &[Data_Value], json: &mut JSONValue) {
+        let keys = self.data.get_keys();
         for i in (0..properties.len()).step_by(2) {
-            let key = &self.data.keys[properties[i] as usize];
+            let key = &keys[properties[i] as usize];
             let value = &values[properties[i + 1] as usize];
 
             match value.value_type.as_ref().unwrap() {
-                Value_type::string_value(v) => json[key] = serde_json::json!(v),
-                Value_type::double_value(v) => json[key] = serde_json::json!(v),
-                Value_type::pos_int_value(v) => json[key] = serde_json::json!(v),
-                Value_type::neg_int_value(v) => json[key] = serde_json::json!(-(*v as i64)),
-                Value_type::bool_value(v) => json[key] = serde_json::json!(v),
-                Value_type::json_value(v) => json[key] = serde_json::from_str(v).unwrap(),
+                Data_Value_oneof_value_type::string_value(v) => json[key] = serde_json::json!(v),
+                Data_Value_oneof_value_type::double_value(v) => json[key] = serde_json::json!(v),
+                Data_Value_oneof_value_type::pos_int_value(v) => json[key] = serde_json::json!(v),
+                Data_Value_oneof_value_type::neg_int_value(v) => {
+                    json[key] = serde_json::json!(-(*v as i64))
+                }
+                Data_Value_oneof_value_type::bool_value(v) => json[key] = serde_json::json!(v),
+                Data_Value_oneof_value_type::json_value(v) => {
+                    json[key] = serde_json::from_str(v).unwrap()
+                }
             }
         }
     }
@@ -216,16 +216,18 @@ impl<'a> Decoder<'a> {
         points_json
     }
 
-    fn decode_multi_line(&self, geometry: &Geometry, is_closed: bool) -> Vec<Vec<Vec<f64>>> {
-        if geometry.lengths.len() == 0 {
-            return vec![self.decode_line(&geometry.coords, is_closed)];
+    fn decode_multi_line(&self, geometry: &Data_Geometry, is_closed: bool) -> Vec<Vec<Vec<f64>>> {
+        let lengths = geometry.get_lengths();
+        let coords = geometry.get_coords();
+        if lengths.len() == 0 {
+            return vec![self.decode_line(&coords, is_closed)];
         }
         let mut lines = Vec::new();
         let mut i: usize = 0;
 
-        for l in &geometry.lengths {
+        for l in lengths {
             let end = (*l as usize) * self.dim;
-            let coords = &geometry.coords[i..i + end];
+            let coords = &coords[i..i + end];
             lines.push(self.decode_line(coords, is_closed));
             i += end;
         }
@@ -233,23 +235,25 @@ impl<'a> Decoder<'a> {
         lines
     }
 
-    fn decode_multi_polygon(&self, geometry: &Geometry) -> Vec<Vec<Vec<Vec<f64>>>> {
-        if geometry.lengths.len() == 0 {
-            return vec![vec![self.decode_line(&geometry.coords, true)]];
+    fn decode_multi_polygon(&self, geometry: &Data_Geometry) -> Vec<Vec<Vec<Vec<f64>>>> {
+        let lengths = geometry.get_lengths();
+        if lengths.len() == 0 {
+            return vec![vec![self.decode_line(&geometry.get_coords(), true)]];
         }
 
         let mut polygons = Vec::new();
         let mut i = 0;
         let mut j = 1;
-        let num_polygons = geometry.lengths[0];
+        let num_polygons = lengths[0];
 
+        let coords = geometry.get_coords();
         for _n in 0..num_polygons {
-            let num_rings = geometry.lengths[j] as usize;
+            let num_rings = lengths[j] as usize;
             j += 1;
             let mut rings = Vec::new();
-            for l in &geometry.lengths[j..j + num_rings] {
+            for l in &lengths[j..j + num_rings] {
                 let end = (*l as usize) * self.dim;
-                let coords = &geometry.coords[i..i + end];
+                let coords = &coords[i..i + end];
                 rings.push(self.decode_line(coords, true));
                 j += 1;
                 i += end;

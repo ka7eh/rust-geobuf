@@ -76,7 +76,6 @@ mod tests {
         let geojson = Decoder::decode(&data).unwrap();
 
         compare_geojsons(&original_geojson, &geojson);
-        // assert_eq!(original_geojson, geojson);
     }
 
     #[test]

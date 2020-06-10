@@ -19,7 +19,7 @@ coveralls = { repository = "ka7eh/rust-geobuf" }
 
 [dependencies]
 clap = { version = "3.0.0-beta.1", optional = true }
-protobuf = { git = "https://github.com/stepancheg/rust-protobuf.git", branch = "master" }
+protobuf = "2.14"
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 
 [target.'cfg(binary)'.dependencies.serde_json]
