@@ -3,7 +3,7 @@ name = "geobuf"
 description = "A geobuf encoder and decoder in rust"
 repository = "https://github.com/ka7eh/rust-geobuf"
 readme = "README.md"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Kaveh Karimi (ka7eh) <kaveh.k.a@gmail.com>"]
 edition = "2018"
 license = "ISC"
@@ -43,9 +43,6 @@ name = "geobuf"
 path = "src/bin.rs"
 test = false
 required-features = ["binary"]
-
-[build]
-target = "wasm32-unknown-unknown"
 
 [profile.release]
 opt-level = 3
