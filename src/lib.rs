@@ -13,6 +13,8 @@
 pub mod decode;
 pub mod encode;
 pub mod geobuf_pb;
+#[cfg(feature = "wasm")]
+pub mod wasm;
 
 #[cfg(test)]
 mod tests {

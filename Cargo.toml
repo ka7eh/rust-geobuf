@@ -1,2 +1,52 @@
-[workspace]
-members = ["geobuf", "geobuf-wasm"]
+[package]
+name = "geobuf"
+description = "A geobuf encoder and decoder in rust"
+repository = "https://github.com/ka7eh/rust-geobuf"
+readme = "README.md"
+version = "0.1.0"
+authors = ["Kaveh Karimi (ka7eh) <kaveh.k.a@gmail.com>"]
+edition = "2018"
+license = "ISC"
+include = [
+    "**/*.rs",
+    "Cargo.toml",
+    "README.md"
+]
+
+[badges]
+travis-ci = { repository = "ka7eh/rust-geobuf" }
+coveralls = { repository = "ka7eh/rust-geobuf" }
+
+[dependencies]
+cfg-if = { version = "0.1", optional = true }
+console_error_panic_hook = { version = "0.1.6", optional = true }
+clap = { version = "3.0.0-beta.1", optional = true }
+protobuf = "2.14"
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+wasm-bindgen = { version = "0.2.63", features = ["serde-serialize"], optional =true }
+web-sys = { version = "0.3", features = ["console"], optional = true }
+
+[target.'cfg(binary)'.dependencies.serde_json]
+default-features = true
+
+[features]
+binary = ["clap"]
+wasm = ["cfg-if", "console_error_panic_hook", "wasm-bindgen", "web-sys"]
+
+[lib]
+name = "geobuf"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "geobuf"
+path = "src/bin.rs"
+test = false
+required-features = ["binary"]
+
+[build]
+target = "wasm32-unknown-unknown"
+
+[profile.release]
+opt-level = 3
+lto = true

@@ -31,7 +31,6 @@ matrix:
 
       before_script:
         - export PATH=$HOME/.cargo/bin:$PATH
-        - cd geobuf
         - cargo install cargo-update || echo "cargo-update already installed"
         - cargo install cargo-travis || echo "cargo-travis already installed"
         - cargo install-update -a
@@ -39,7 +38,7 @@ matrix:
       script:
         - |
             cargo build --features binary &&
-            cargo test -p geobuf &&
+            cargo test &&
             cargo doc
 
       after_success:
