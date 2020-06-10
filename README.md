@@ -39,7 +39,7 @@ The `www` folder contains a sample project showing how the wasm code can be used
 
 To run the example locally, clone the repo and run the following:
 
-- `wasm-pack build -- --features wasm`
+- `wasm-pack build -- --no-default-features --features wasm`
 - `cd www && npm i && npm start`
 
 > Note: The wasm code is currently slower that the [node version](https://github.com/mapbox/geobuf) and requires some refactoring to improve how data is being passed between the JS and Rust code.
