@@ -2,13 +2,10 @@
 //! use geobuf::{decode, encode};
 //! use serde_json;
 //!
-//! fn main() {
-//!     let original_geojson =
-//!         serde_json::from_str(r#"{"type": "Point", "coordinates": [100.0, 0.0]}"#).unwrap();
-//!     let geobuf = encode::Encoder::encode(&original_geojson, 6, 2).unwrap();
-//!     let geojson = decode::Decoder::decode(&geobuf).unwrap();
-//!     assert_eq!(original_geojson, geojson);
-//! }
+//! let original_geojson = serde_json::from_str(r#"{"type": "Point", "coordinates": [100.0, 0.0]}"#).unwrap();
+//! let geobuf = encode::Encoder::encode(&original_geojson, 6, 2).unwrap();
+//! let geojson = decode::Decoder::decode(&geobuf).unwrap();
+//! assert_eq!(original_geojson, geojson);
 //! ```
 pub mod decode;
 pub mod encode;

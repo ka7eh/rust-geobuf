@@ -4,7 +4,7 @@
 [![Build Status](https://travis-ci.com/ka7eh/rust-geobuf.svg?branch=master)](https://travis-ci.com/ka7eh/rust-geobuf)
 [![Coverage Status](https://coveralls.io/repos/github/ka7eh/rust-geobuf/badge.svg?branch=master)](https://coveralls.io/github/ka7eh/rust-geobuf?branch=master)
 
-_Tested with rust 1.44_
+_Tested with rust 1.60_
 
 A port of geobuf encoder and decoder into Rust and WebAssembly
 

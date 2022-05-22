@@ -1,14 +1,11 @@
 //! Geobuf to GeoJSON decoder
 use serde_json::Value as JSONValue;
 
-use crate::geobuf_pb::{
-    Data, Data_Feature, Data_FeatureCollection, Data_Feature_oneof_id_type, Data_Geometry,
-    Data_Geometry_Type, Data_Value, Data_Value_oneof_value_type, Data_oneof_data_type,
-};
+use crate::geobuf_pb;
 
 /// Geobuf to GeoJSON Decoder
 pub struct Decoder<'a> {
-    data: &'a Data,
+    data: &'a geobuf_pb::Data,
     dim: usize,
     e: f64, // multiplier for converting coordinates into integers
 }
@@ -27,14 +24,14 @@ impl<'a> Decoder<'a> {
     /// use geobuf::geobuf_pb;
     ///
     /// let mut data = geobuf_pb::Data::new();
-    /// let feature_collection = geobuf_pb::Data_FeatureCollection::new();
+    /// let feature_collection = geobuf_pb::data::FeatureCollection::new();
     /// data.set_feature_collection(feature_collection);
     /// let geojson = Decoder::decode(&data).unwrap();
     /// assert_eq!(geojson["type"], "FeatureCollection");
     /// ```
-    pub fn decode(data: &Data) -> Result<JSONValue, &'static str> {
-        let dim = data.get_dimensions() as usize;
-        let precision = data.get_precision() as i32;
+    pub fn decode(data: &geobuf_pb::Data) -> Result<JSONValue, &'static str> {
+        let dim = data.dimensions() as usize;
+        let precision = data.precision() as i32;
 
         let decoder = Decoder {
             data,
@@ -48,17 +45,20 @@ impl<'a> Decoder<'a> {
         };
 
         match data_type {
-            Data_oneof_data_type::feature_collection(feature_collection) => {
-                Ok(decoder.decode_feature_collection(&feature_collection))
+            geobuf_pb::data::Data_type::FeatureCollection(feature_collection) => {
+                Ok(decoder.decode_feature_collection(feature_collection))
             }
-            Data_oneof_data_type::feature(feature) => Ok(decoder.decode_feature(&feature)),
-            Data_oneof_data_type::geometry(geometry) => Ok(decoder.decode_geometry(&geometry)),
+            geobuf_pb::data::Data_type::Feature(feature) => Ok(decoder.decode_feature(feature)),
+            geobuf_pb::data::Data_type::Geometry(geometry) => Ok(decoder.decode_geometry(geometry)),
         }
     }
 
-    fn decode_feature_collection(&self, feature_collection: &Data_FeatureCollection) -> JSONValue {
+    fn decode_feature_collection(
+        &self,
+        feature_collection: &geobuf_pb::data::FeatureCollection,
+    ) -> JSONValue {
         let mut features_json = Vec::new();
-        for feature in feature_collection.get_features().iter() {
+        for feature in feature_collection.features.iter() {
             features_json.push(self.decode_feature(feature));
         }
 
@@ -66,112 +66,127 @@ impl<'a> Decoder<'a> {
             serde_json::json!({"type": "FeatureCollection", "features": features_json});
 
         self.decode_properties(
-            &feature_collection.get_custom_properties(),
-            &feature_collection.get_values(),
+            &feature_collection.custom_properties,
+            &feature_collection.values,
             &mut feature_collection_json,
         );
         feature_collection_json
     }
 
-    fn decode_feature(&self, feature: &Data_Feature) -> JSONValue {
+    fn decode_feature(&self, feature: &geobuf_pb::data::Feature) -> JSONValue {
         let mut feature_json = serde_json::json!({
             "type": "Feature",
-            "geometry": self.decode_geometry(&feature.get_geometry())
+            "geometry": self.decode_geometry(&feature.geometry)
         });
 
         self.decode_properties(
-            &feature.get_custom_properties(),
-            &feature.get_values(),
+            &feature.custom_properties,
+            &feature.values,
             &mut feature_json,
         );
 
         match &feature.id_type {
             Some(id) => match id {
-                Data_Feature_oneof_id_type::int_id(id) => {
+                geobuf_pb::data::feature::Id_type::IntId(id) => {
                     feature_json["id"] = serde_json::json!(id)
                 }
-                Data_Feature_oneof_id_type::id(id) => feature_json["id"] = serde_json::json!(id),
+                geobuf_pb::data::feature::Id_type::Id(id) => {
+                    feature_json["id"] = serde_json::json!(id)
+                }
             },
             None => {}
         }
 
-        let feature_properties = feature.get_properties();
-        if feature_properties.len() > 0 {
+        let feature_properties = &feature.properties;
+        if !feature_properties.is_empty() {
             let mut properties = serde_json::json!({});
-            self.decode_properties(&feature_properties, &feature.get_values(), &mut properties);
+            self.decode_properties(feature_properties, &feature.values, &mut properties);
             feature_json["properties"] = properties;
         }
 
         feature_json
     }
 
-    fn decode_geometry(&self, geometry: &Data_Geometry) -> JSONValue {
+    fn decode_geometry(&self, geometry: &geobuf_pb::data::Geometry) -> JSONValue {
         let mut geometry_json = serde_json::json!({});
 
-        match geometry.get_field_type() {
-            Data_Geometry_Type::GEOMETRYCOLLECTION => {
+        match geometry.type_() {
+            geobuf_pb::data::geometry::Type::GEOMETRYCOLLECTION => {
                 geometry_json["type"] = serde_json::json!("GeometryCollection");
                 let mut geometries = Vec::new();
-                for geom in geometry.get_geometries() {
-                    geometries.push(self.decode_geometry(&geom));
+                for geom in &geometry.geometries {
+                    geometries.push(self.decode_geometry(geom));
                 }
                 geometry_json["geometries"] = serde_json::json!(geometries);
             }
-            Data_Geometry_Type::POINT => {
+            geobuf_pb::data::geometry::Type::POINT => {
                 geometry_json["type"] = serde_json::json!("Point");
                 geometry_json["coordinates"] =
-                    serde_json::json!(self.decode_point(&geometry.get_coords()));
+                    serde_json::json!(self.decode_point(&geometry.coords));
             }
-            Data_Geometry_Type::MULTIPOINT => {
+            geobuf_pb::data::geometry::Type::MULTIPOINT => {
                 geometry_json["type"] = serde_json::json!("MultiPoint");
                 geometry_json["coordinates"] =
-                    serde_json::json!(self.decode_line(&geometry.get_coords(), false));
+                    serde_json::json!(self.decode_line(&geometry.coords, false));
             }
-            Data_Geometry_Type::LINESTRING => {
+            geobuf_pb::data::geometry::Type::LINESTRING => {
                 geometry_json["type"] = serde_json::json!("LineString");
                 geometry_json["coordinates"] =
-                    serde_json::json!(self.decode_line(&geometry.get_coords(), false));
+                    serde_json::json!(self.decode_line(&geometry.coords, false));
             }
-            Data_Geometry_Type::MULTILINESTRING => {
+            geobuf_pb::data::geometry::Type::MULTILINESTRING => {
                 geometry_json["type"] = serde_json::json!("MultiLineString");
                 geometry_json["coordinates"] =
-                    serde_json::json!(self.decode_multi_line(&geometry, false));
+                    serde_json::json!(self.decode_multi_line(geometry, false));
             }
-            Data_Geometry_Type::POLYGON => {
+            geobuf_pb::data::geometry::Type::POLYGON => {
                 geometry_json["type"] = serde_json::json!("Polygon");
                 geometry_json["coordinates"] =
-                    serde_json::json!(self.decode_multi_line(&geometry, true));
+                    serde_json::json!(self.decode_multi_line(geometry, true));
             }
-            Data_Geometry_Type::MULTIPOLYGON => {
+            geobuf_pb::data::geometry::Type::MULTIPOLYGON => {
                 geometry_json["type"] = serde_json::json!("MultiPolygon");
                 geometry_json["coordinates"] =
-                    serde_json::json!(self.decode_multi_polygon(&geometry));
+                    serde_json::json!(self.decode_multi_polygon(geometry));
             }
         }
 
         self.decode_properties(
-            &geometry.get_custom_properties(),
-            geometry.get_values(),
+            &geometry.custom_properties,
+            &geometry.values,
             &mut geometry_json,
         );
         geometry_json
     }
 
-    fn decode_properties(&self, properties: &[u32], values: &[Data_Value], json: &mut JSONValue) {
-        let keys = self.data.get_keys();
+    fn decode_properties(
+        &self,
+        properties: &[u32],
+        values: &[geobuf_pb::data::Value],
+        json: &mut JSONValue,
+    ) {
+        let keys = &self.data.keys;
         for i in (0..properties.len()).step_by(2) {
             let key = &keys[properties[i] as usize];
             let value = &values[properties[i + 1] as usize];
 
             match value.value_type.as_ref().unwrap() {
-                Data_Value_oneof_value_type::string_value(v) => json[key] = serde_json::json!(v),
-                Data_Value_oneof_value_type::double_value(v) => json[key] = serde_json::json!(v),
-                Data_Value_oneof_value_type::pos_int_value(v) => json[key] = serde_json::json!(v),
-                Data_Value_oneof_value_type::neg_int_value(v) => {
+                geobuf_pb::data::value::Value_type::StringValue(v) => {
+                    json[key] = serde_json::json!(v)
+                }
+                geobuf_pb::data::value::Value_type::DoubleValue(v) => {
+                    json[key] = serde_json::json!(v)
+                }
+                geobuf_pb::data::value::Value_type::PosIntValue(v) => {
+                    json[key] = serde_json::json!(v)
+                }
+                geobuf_pb::data::value::Value_type::NegIntValue(v) => {
                     json[key] = serde_json::json!(-(*v as i64))
                 }
-                Data_Value_oneof_value_type::bool_value(v) => json[key] = serde_json::json!(v),
-                Data_Value_oneof_value_type::json_value(v) => {
+                geobuf_pb::data::value::Value_type::BoolValue(v) => {
+                    json[key] = serde_json::json!(v)
+                }
+                geobuf_pb::data::value::Value_type::JsonValue(v) => {
                     json[key] = serde_json::from_str(v).unwrap()
                 }
             }
@@ -216,11 +231,15 @@ impl<'a> Decoder<'a> {
         points_json
     }
 
-    fn decode_multi_line(&self, geometry: &Data_Geometry, is_closed: bool) -> Vec<Vec<Vec<f64>>> {
-        let lengths = geometry.get_lengths();
-        let coords = geometry.get_coords();
-        if lengths.len() == 0 {
-            return vec![self.decode_line(&coords, is_closed)];
+    fn decode_multi_line(
+        &self,
+        geometry: &geobuf_pb::data::Geometry,
+        is_closed: bool,
+    ) -> Vec<Vec<Vec<f64>>> {
+        let lengths = &geometry.lengths;
+        let coords = &geometry.coords;
+        if lengths.is_empty() {
+            return vec![self.decode_line(coords, is_closed)];
         }
         let mut lines = Vec::new();
         let mut i: usize = 0;
@@ -235,10 +254,13 @@ impl<'a> Decoder<'a> {
         lines
     }
 
-    fn decode_multi_polygon(&self, geometry: &Data_Geometry) -> Vec<Vec<Vec<Vec<f64>>>> {
-        let lengths = geometry.get_lengths();
-        if lengths.len() == 0 {
-            return vec![vec![self.decode_line(&geometry.get_coords(), true)]];
+    fn decode_multi_polygon(
+        &self,
+        geometry: &geobuf_pb::data::Geometry,
+    ) -> Vec<Vec<Vec<Vec<f64>>>> {
+        let lengths = &geometry.lengths;
+        if lengths.is_empty() {
+            return vec![vec![self.decode_line(&geometry.coords, true)]];
         }
 
         let mut polygons = Vec::new();
@@ -246,7 +268,7 @@ impl<'a> Decoder<'a> {
         let mut j = 1;
         let num_polygons = lengths[0];
 
-        let coords = geometry.get_coords();
+        let coords = &geometry.coords;
         for _n in 0..num_polygons {
             let num_rings = lengths[j] as usize;
             j += 1;
